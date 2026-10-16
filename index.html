@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Arcade Odyssey - Final Fixed Edition</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #030712;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 480px;
+            height: 100%;
+            max-height: 850px;
+            background: linear-gradient(180deg, #0f172a 0%, #030712 100%);
+            box-shadow: 0 0 60px rgba(56, 189, 248, 0.2);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        #single-canvas-container {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%; display: block;
+        }
+        .half-screen {
+            width: 100%; flex: 1; position: relative; overflow: hidden; display: none;
+        }
+        #half-1 { border-bottom: 2px solid rgba(56, 189, 248, 0.4); background: linear-gradient(180deg, #0f172a 0%, #030712 100%); }
+        #half-2 { background: linear-gradient(180deg, #2e1065 0%, #030712 100%); }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
+            padding: 20px; z-index: 5;
+        }
+        .header-panel {
+            display: flex; justify-content: space-between; align-items: center;
+            color: #fff; background: rgba(15, 23, 42, 0.75);
+            padding: 10px 16px; border-radius: 16px;
+            border: 1px solid rgba(56, 189, 248, 0.3); backdrop-filter: blur(10px);
+        }
+        .stat-box { font-size: 13px; font-weight: 800; color: #38bdf8; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, #1e1b4b 0%, #030712 100%);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 20; pointer-events: auto; padding: 24px;
+        }
+        .logo-title { color: #f8fafc; font-size: 38px; font-weight: 900; letter-spacing: 2px; text-align: center; text-shadow: 0 0 20px rgba(56, 189, 248, 0.6); margin-bottom: 4px; }
+        .logo-subtitle { color: #38bdf8; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 24px; font-weight: bold; }
+        
+        .lobby-card {
+            background: rgba(17, 24, 39, 0.85); border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 16px; padding: 16px; width: 100%; max-width: 340px; margin-bottom: 20px; text-align: center;
+        }
+        .xp-bar-container { width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+        .xp-bar-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8); transition: width 0.3s ease; }
+
+        .btn {
+            background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+            color: white; border: none; padding: 14px 32px; font-size: 17px; font-weight: bold;
+            border-radius: 16px; cursor: pointer; box-shadow: 0 6px 20px rgba(56, 189, 248, 0.45);
+            transition: transform 0.1s ease; margin-bottom: 10px; width: 100%; max-width: 320px; text-align: center;
+        }
+        .btn-secondary { background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: none; }
+        .btn:active { transform: scale(0.96); }
+
+        .shop-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; max-width: 340px; max-height: 320px; overflow-y: auto; margin-bottom: 16px; padding: 4px; }
+        .shop-card { background: rgba(17, 24, 39, 0.9); border: 2px solid rgba(56, 189, 248, 0.2); border-radius: 14px; padding: 12px; text-align: center; cursor: pointer; }
+        .shop-card.active { border-color: #38bdf8; background: rgba(56, 189, 248, 0.15); }
+
+        #versus-hud {
+            position: absolute; top: 15px; left: 0; width: 100%;
+            display: none; justify-content: space-around; z-index: 10; pointer-events: none;
+            font-weight: 900; font-size: 14px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+        #hud-p1 { color: #38bdf8; } #hud-p2 { color: #c084fc; }
+
+        /* Bölünmüş Ekran Game Over Overlayleri (Düzeltildi) */
+        .versus-overlay {
+            position: absolute; left: 0; width: 100%; height: 50%;
+            display: none; justify-content: center; align-items: center; z-index: 30;
+            background: rgba(3, 7, 18, 0.85); flex-direction: column; pointer-events: auto;
+        }
+        #overlay-p1 { top: 0; transform: rotate(180deg); }
+        #overlay-p2 { top: 50%; }
+
+        .versus-msg { font-size: 24px; font-weight: 900; text-shadow: 0 2px 10px rgba(0,0,0,0.8); margin-bottom: 8px; }
+        .versus-btn-group { display: flex; gap: 8px; }
+        .v-btn { padding: 6px 14px; font-size: 12px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; color: white; }
+
+        #shop-screen, #map-screen, #game-over-screen { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="single-canvas-container"><canvas id="singleCanvas"></canvas></div>
+
+        <div id="half-1" class="half-screen"><canvas id="canvas1"></canvas></div>
+        <div id="half-2" class="half-screen"><canvas id="canvas2"></canvas></div>
+
+        <!-- P1 ve P2 İçin Düzeltilmiş Game Over Ekranları -->
+        <div id="overlay-p1" class="versus-overlay">
+            <div id="msg-p1" class="versus-msg" style="color: #f43f5e;">KAYBETTİN</div>
+            <div class="versus-btn-group">
+                <button class="v-btn" style="background:#38bdf8;" onclick="restartVersus()">BAŞTAN BAŞLA</button>
+                <button class="v-btn" style="background:#475569;" onclick="goToMenu()">LOBİYE DÖN</button>
+            </div>
+        </div>
+        <div id="overlay-p2" class="versus-overlay">
+            <div id="msg-p2" class="versus-msg" style="color: #4ade80;">KAZANDIN</div>
+            <div class="versus-btn-group">
+                <button class="v-btn" style="background:#c084fc;" onclick="restartVersus()">BAŞTAN BAŞLA</button>
+                <button class="v-btn" style="background:#475569;" onclick="goToMenu()">LOBİYE DÖN</button>
+            </div>
+        </div>
+
+        <div id="versus-hud">
+            <span id="hud-p1">P1 (ÜST): 0</span>
+            <span id="hud-p2">P2 (ALT): 0</span>
+        </div>
+
+        <div id="menu-screen" class="screen">
+            <div class="logo-title">ZOMBIE ODYSSEY</div>
+            <div class="logo-subtitle">Final Versus Edition</div>
+
+            <div class="lobby-card">
+                <div style="display: flex; justify-content: space-between; color: #fff; font-size: 13px; font-weight: bold;">
+                    <span>SEVİYE <span id="lobby-level">1</span></span>
+                    <span style="color: #facc15;">⭐ <span id="lobby-stars">0</span></span>
+                </div>
+                <div class="xp-bar-container"><div id="lobby-xp-fill" class="xp-bar-fill"></div></div>
+                <div style="font-size: 10px; color: #94a3b8; margin-top: 4px; text-align: left;">XP: <span id="lobby-xp-text">0 / 100</span></div>
+            </div>
+
+            <button class="btn" id="start-single-btn">TEK KİŞİLİK OYNA</button>
+            <button class="btn" style="background: linear-gradient(135deg, #c084fc 0%, #7e22ce 100%); box-shadow: 0 6px 20px rgba(192, 132, 252, 0.4);" id="start-versus-btn">2 KİŞİLİK DÜELLO</button>
+            <button class="btn btn-secondary" id="open-shop-btn">MARKET</button>
+            <button class="btn btn-secondary" id="open-map-btn">HARİTALAR</button>
+        </div>
+
+        <div id="shop-screen" class="screen">
+            <h1 style="font-size: 26px; margin-bottom: 2px;">MARKET</h1>
+            <p>Kostüm ve Renkli İz Efektleri</p>
+            <div class="shop-container">
+                <div class="shop-card active" onclick="selectItem('skin', 'neon', 0, this)">
+                    <span style="font-size: 24px;">🔵</span><div style="color:#fff; font-size:12px; font-weight:bold; margin-top:4px;">Neon Mavi</div><span style="color:#38bdf8; font-size:10px;">Aktif</span>
+                </div>
+                <div class="shop-card" onclick="selectItem('skin', 'pumpkin', 50, this)">
+                    <span style="font-size: 24px;">🎃</span><div style="color:#fff; font-size:12px; font-weight:bold; margin-top:4px;">Balkabağı</div><span style="color:#facc15; font-size:10px;">50 ⭐</span>
+                </div>
+                <div class="shop-card" onclick="selectItem('skin', 'santa', 100, this)">
+                    <span style="font-size: 24px;">🎅</span><div style="color:#fff; font-size:12px; font-weight:bold; margin-top:4px;">Noel Baba</div><span style="color:#facc15; font-size:10px;">100 ⭐</span>
+                </div>
+                <div class="shop-card" onclick="selectItem('trail', 'rainbow', 75, this)">
+                    <span style="font-size: 24px;">🌈</span><div style="color:#fff; font-size:12px; font-weight:bold; margin-top:4px;">Gökkuşağı İzi</div><span style="color:#facc15; font-size:10px;">75 ⭐</span>
+                </div>
+            </div>
+            <button class="btn btn-secondary" id="close-shop-btn">LOBİ</button>
+        </div>
+
+        <div id="map-screen" class="screen">
+            <h1 style="font-size: 26px; margin-bottom: 2px;">HARİTALAR</h1>
+            <p>Seviye Seçimi</p>
+            <div class="shop-container" style="grid-template-columns: 1fr;">
+                <div class="shop-card active" onclick="selectMap(0)">
+                    <div style="color:#38bdf8; font-size:14px; font-weight:bold;">Seviye 1: Neon Şehir</div>
+                    <div style="color:#fff; font-size:10px; margin-top:2px;">Standart Hız</div>
+                </div>
+                <div class="shop-card" onclick="selectMap(1)">
+                    <div style="color:#38bdf8; font-size:14px; font-weight:bold;">Seviye 2: Buz Diyarı (100 Skor)</div>
+                    <div style="color:#fff; font-size:10px; margin-top:2px;" id="map2-label">Kilitli</div>
+                </div>
+            </div>
+            <button class="btn btn-secondary" id="close-map-btn">LOBİ</button>
+        </div>
+
+        <div id="game-over-screen" class="screen">
+            <h1 style="color: #f43f5e; font-size: 30px;">ZOMBİLER TARAFINDAN YENDİN</h1>
+            <p id="final-score">Skorun: 0</p>
+            <button class="btn" onclick="document.getElementById('start-single-btn').click(); gameOverScreen.style.display='none';">BAŞTAN BAŞLA</button>
+            <button class="btn btn-secondary" onclick="goToMenu()">LOBİYE DÖN</button>
+        </div>
+
+        <div id="ui-layer">
+            <div class="header-panel" id="single-hud" style="display:none;">
+                <div class="stat-box">SKOR: <span id="score">0</span></div>
+                <div class="stat-box" style="color: #facc15;">⭐ <span id="star-count">0</span></div>
+                <div class="stat-box" style="color: #818cf8;">LVL <span id="hud-level">1</span></div>
+            </div>
+            <div id="world-banner" style="display:none; position: absolute; top: 70px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 900; letter-spacing: 2px; color: #38bdf8; background: rgba(15, 23, 42, 0.8); padding: 4px 12px; border-radius: 20px; border: 1px solid rgba(56, 189, 248, 0.3);">NEON ŞEHİR</div>
+        </div>
+    </div>
+
+    <script>
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            try {
+                let osc = audioCtx.createOscillator();
+                let gainNode = audioCtx.createGain();
+                osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+                let now = audioCtx.currentTime;
+                if (type === 'star') {
+                    osc.frequency.setValueAtTime(587.33, now); osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
+                    gainNode.gain.setValueAtTime(0.2, now); gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                    osc.start(now); osc.stop(now + 0.15);
+                } else if (type === 'hit') {
+                    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.exponentialRampToValueAtTime(40, now + 0.4);
+                    gainNode.gain.setValueAtTime(0.3, now); gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(now); osc.stop(now + 0.4);
+                }
+            } catch(e){}
+        }
+
+        const container = document.getElementById('game-container');
+        const menuScreen = document.getElementById('menu-screen');
+        const shopScreen = document.getElementById('shop-screen');
+        const mapScreen = document.getElementById('map-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const overlayP1 = document.getElementById('overlay-p1');
+        const overlayP2 = document.getElementById('overlay-p2');
+
+        const singleCanvasContainer = document.getElementById('single-canvas-container');
+        const half1 = document.getElementById('half-1');
+        const half2 = document.getElementById('half-2');
+        const singleHud = document.getElementById('single-hud');
+        const worldBanner = document.getElementById('world-banner');
+        const versusHud = document.getElementById('versus-hud');
+
+        const singleCanvas = document.getElementById('singleCanvas');
+        const ctxSingle = singleCanvas.getContext('2d');
+        const canvas1 = document.getElementById('canvas1');
+        const ctx1 = canvas1.getContext('2d');
+        const canvas2 = document.getElementById('canvas2');
+        const ctx2 = canvas2.getContext('2d');
+
+        let totalStars = parseInt(localStorage.getItem('arcade_stars') || '0');
+        let playerLevel = parseInt(localStorage.getItem('arcade_level') || '1');
+        let playerXp = parseInt(localStorage.getItem('arcade_xp') || '0');
+        let maxUnlockedLevel = parseInt(localStorage.getItem('max_level') || '0');
+        let currentLevel = 0;
+        let selectedSkin = localStorage.getItem('arcade_skin') || 'neon';
+        let selectedTrail = localStorage.getItem('arcade_trail') || 'none';
+
+        function updateLobbyUI() {
+            document.getElementById('lobby-stars').innerText = totalStars;
+            document.getElementById('star-count').innerText = totalStars;
+            document.getElementById('lobby-level').innerText = playerLevel;
+            document.getElementById('hud-level').innerText = playerLevel;
+            let xpNeeded = playerLevel * 100;
+            let p = Math.min(100, (playerXp / xpNeeded) * 100);
+            document.getElementById('lobby-xp-fill').style.width = p + '%';
+            document.getElementById('lobby-xp-text').innerText = playerXp + ' / ' + xpNeeded;
+            if (maxUnlockedLevel >= 1) document.getElementById('map2-label').innerText = "Açık", document.getElementById('map2-label').style.color = "#4ade80";
+        }
+        updateLobbyUI();
+
+        function resize() {
+            const dpr = window.devicePixelRatio || 1;
+            singleCanvas.width = container.clientWidth * dpr; singleCanvas.height = container.clientHeight * dpr;
+            ctxSingle.scale(dpr, dpr);
+
+            const fullW = container.clientWidth; const halfH = container.clientHeight / 2;
+            canvas1.width = fullW * dpr; canvas1.height = halfH * dpr; ctx1.scale(dpr, dpr);
+            canvas2.width = fullW * dpr; canvas2.height = halfH * dpr; ctx2.scale(dpr, dpr);
+        }
+        window.addEventListener('resize', resize); resize();
+
+        let gameMode = 'MENU';
+
+        let score = 0, sessionStars = 0, spawnTimer = 0, starTimer = 0;
+        const levels = [
+            { name: "NEON ŞEHİR", bg: "linear-gradient(180deg, #0f172a 0%, #030712 100%)", speed: 1 },
+            { name: "BUZ DİYARI", bg: "linear-gradient(180deg, #0e2a47 0%, #03111f 100%)", speed: 1.4 }
+        ];
+        let player = { x: 240, y: 700, targetX: 240, targetY: 700, radius: 24, dragging: false };
+        let enemies = [], stars = [], particles = [], trail = [];
+
+        let p1Score = 0, p2Score = 0, p1Alive = true, p2Alive = true;
+        let p1 = { x: 240, y: 150, targetX: 240, targetY: 150, radius: 20, color: '#38bdf8', dragging: false };
+        let p2 = { x: 240, y: 250, targetX: 240, targetY: 250, radius: 20, color: '#c084fc', dragging: false };
+        let enemies1 = [], enemies2 = [], spawnTimer1 = 0, spawnTimer2 = 0;
+
+        document.getElementById('open-shop-btn').onclick = () => { menuScreen.style.display = 'none'; shopScreen.style.display = 'flex'; };
+        document.getElementById('close-shop-btn').onclick = () => { shopScreen.style.display = 'none'; menuScreen.style.display = 'flex'; };
+        document.getElementById('open-map-btn').onclick = () => { menuScreen.style.display = 'none'; mapScreen.style.display = 'flex'; };
+        document.getElementById('close-map-btn').onclick = () => { mapScreen.style.display = 'none'; menuScreen.style.display = 'flex'; };
+
+        window.selectItem = (type, name, cost, el) => {
+            let unlocked = JSON.parse(localStorage.getItem('arcade_unlocked') || '["neon","none"]');
+            if (type === 'skin') {
+                if (unlocked.includes(name) || cost === 0) { selectedSkin = name; localStorage.setItem('arcade_skin', name); alert('Seçildi!'); }
+                else if (totalStars >= cost) { totalStars -= cost; unlocked.push(name); localStorage.setItem('arcade_stars', totalStars); localStorage.setItem('arcade_unlocked', JSON.stringify(unlocked)); selectedSkin = name; localStorage.setItem('arcade_skin', name); updateLobbyUI(); alert('Alındı!'); }
+                else alert('Yetersiz yıldız!');
+            } else if (type === 'trail') {
+                if (unlocked.includes(name) || cost === 0) { selectedTrail = name; localStorage.setItem('arcade_trail', name); alert('Seçildi!'); }
+                else if (totalStars >= cost) { totalStars -= cost; unlocked.push(name); localStorage.setItem('arcade_stars', totalStars); localStorage.setItem('arcade_unlocked', JSON.stringify(unlocked)); selectedTrail = name; localStorage.setItem('arcade_trail', name); updateLobbyUI(); alert('Alındı!'); }
+                else alert('Yetersiz yıldız!');
+            }
+        };
+
+        window.selectMap = (lvl) => {
+            if (lvl === 0 || maxUnlockedLevel >= lvl) {
+                currentLevel = lvl;
+                container.style.background = levels[currentLevel].bg;
+                mapScreen.style.display = 'none'; menuScreen.style.display = 'flex';
+            } else alert('Kilitli! 100 skora ulaşmalısın.');
+        };
+
+        document.getElementById('start-single-btn').onclick = () => {
+            initAudio(); menuScreen.style.display = 'none';
+            singleCanvasContainer.style.display = 'block'; half1.style.display = 'none'; half2.style.display = 'none';
+            singleHud.style.display = 'flex'; worldBanner.style.display = 'block'; versusHud.style.display = 'none';
+            overlayP1.style.display = 'none'; overlayP2.style.display = 'none';
+            score = 0; sessionStars = 0; enemies = []; stars = []; particles = []; trail = [];
+            player.x = container.clientWidth / 2; player.y = container.clientHeight - 150;
+            player.targetX = player.x; player.targetY = player.y;
+            container.style.background = levels[currentLevel].bg; worldBanner.innerText = levels[currentLevel].name;
+            gameMode = 'SINGLE';
+        };
+
+        document.getElementById('start-versus-btn').onclick = () => {
+            initAudio(); menuScreen.style.display = 'none';
+            singleCanvasContainer.style.display = 'none'; half1.style.display = 'block'; half2.style.display = 'block';
+            singleHud.style.display = 'none'; worldBanner.style.display = 'none'; versusHud.style.display = 'flex';
+            overlayP1.style.display = 'none'; overlayP2.style.display = 'none';
+            p1Score = 0; p2Score = 0; p1Alive = true; p2Alive = true; enemies1 = []; enemies2 = [];
+            const fullW = container.clientWidth; const halfH = container.clientHeight / 2;
+            p1.x = fullW / 2; p1.y = halfH - 50; p1.targetX = p1.x; p1.targetY = p1.y;
+            p2.x = fullW / 2; p2.y = 50; p2.targetX = p2.x; p2.targetY = p2.y;
+            document.getElementById('hud-p1').innerText = "P1 (ÜST): 0"; 
+            document.getElementById('hud-p2').innerText = "P2 (ALT): 0";
+            gameMode = 'VERSUS';
+        };
+
+        window.restartVersus = () => {
+            overlayP1.style.display = 'none'; overlayP2.style.display = 'none';
+            document.getElementById('start-versus-btn').click();
+        };
+
+        window.goToMenu = () => {
+            gameOverScreen.style.display = 'none';
+            overlayP1.style.display = 'none'; overlayP2.style.display = 'none';
+            menuScreen.style.display = 'flex'; updateLobbyUI(); gameMode = 'MENU';
+        };
+
+        window.addEventListener('pointerdown', (e) => handlePointer(e, true));
+        window.addEventListener('pointermove', (e) => handlePointer(e, false));
+        window.addEventListener('pointerup', () => { player.dragging = false; p1.dragging = false; p2.dragging = false; });
+
+        function handlePointer(e, isDown) {
+            if (gameMode === 'SINGLE') {
+                const rect = singleCanvas.getBoundingClientRect();
+                let x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+                let y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+                if (isDown && Math.hypot(x - player.x, y - player.y) < player.radius * 3) player.dragging = true;
+                if (player.dragging) {
+                    player.targetX = Math.max(player.radius, Math.min(container.clientWidth - player.radius, x));
+                    player.targetY = Math.max(player.radius, Math.min(container.clientHeight - player.radius, y));
+                }
+            } else if (gameMode === 'VERSUS') {
+                const fullW = container.clientWidth; const halfH = container.clientHeight / 2;
+                const rect1 = canvas1.getBoundingClientRect();
+                for (let i = 0; i < (e.targetTouches ? e.targetTouches.length : 1); i++) {
+                    const clientX = e.touches ? e.touches[i].clientX : e.clientX;
+                    const clientY = e.touches ? e.touches[i].clientY : e.clientY;
+                    if (clientY < rect1.top + halfH) {
+                        let x = clientX - rect1.left; let y = clientY - rect1.top;
+                        if (isDown && Math.hypot(x - p1.x, y - p1.y) < p1.radius * 3) p1.dragging = true;
+                        if (p1.dragging) { p1.targetX = Math.max(p1.radius, Math.min(fullW - p1.radius, x)); p1.targetY = Math.max(p1.radius, Math.min(halfH - p1.radius, y)); }
+                    } else {
+                        let x = clientX - rect1.left; let y = clientY - rect1.top - halfH;
+                        if (isDown && Math.hypot(x - p2.x, y - p2.y) < p2.radius * 3) p2.dragging = true;
+                        if (p2.dragging) { p2.targetX = Math.max(p2.radius, Math.min(fullW - p2.radius, x)); p2.targetY = Math.max(p2.radius, Math.min(halfH - p2.radius, y)); }
+                    }
+                }
+            }
+        }
+
+        let lastTime = 0;
+        function gameLoop(timestamp) {
+            let deltaTime = (timestamp - lastTime) / 1000;
+            if (isNaN(deltaTime) || deltaTime > 0.1) deltaTime = 0.016;
+            lastTime = timestamp;
+
+            if (gameMode === 'SINGLE') {
+                ctxSingle.clearRect(0, 0, container.clientWidth, container.clientHeight);
+
+                player.x += (player.targetX - player.x) * 15 * deltaTime;
+                player.y += (player.targetY - player.y) * 15 * deltaTime;
+
+                trail.push({ x: player.x, y: player.y, alpha: 1, color: selectedTrail === 'rainbow' ? `hsl(${Date.now() % 360}, 100%, 50%)` : '#38bdf8' });
+                if (trail.length > 10) trail.shift();
+
+                spawnTimer += deltaTime;
+                if (spawnTimer > 0.7) {
+                    enemies.push({ x: Math.random()*(container.clientWidth-50)+25, y: -35, radius: 20, speed: (200 + score*2) * levels[currentLevel].speed });
+                    spawnTimer = 0;
+                }
+                starTimer += deltaTime;
+                if (starTimer > 1.2) {
+                    stars.push({ x: Math.random()*(container.clientWidth-40)+20, y: -20, radius: 12, speed: 150 });
+                    starTimer = 0;
+                }
+
+                stars.forEach(st => st.y += st.speed * deltaTime);
+                stars = stars.filter(st => {
+                    ctxSingle.beginPath(); ctxSingle.arc(st.x, st.y, st.radius, 0, Math.PI*2);
+                    ctxSingle.fillStyle = '#facc15'; ctxSingle.shadowColor = '#facc15'; ctxSingle.shadowBlur = 10; ctxSingle.fill(); ctxSingle.restore();
+                    if (Math.hypot(player.x - st.x, player.y - st.y) < player.radius + st.radius) {
+                        playSound('star'); score += 10; sessionStars += 1;
+                        document.getElementById('score').innerText = score;
+                        document.getElementById('star-count').innerText = totalStars + sessionStars;
+                        return false;
+                    }
+                    return st.y <= container.clientHeight + 40;
+                });
+
+                enemies.forEach(en => en.y += en.speed * deltaTime);
+                enemies = enemies.filter(en => {
+                    ctxSingle.save();
+                    ctxSingle.font = '32px sans-serif'; ctxSingle.textAlign = 'center'; ctxSingle.textBaseline = 'middle';
+                    ctxSingle.fillText('🧟', en.x, en.y);
+                    ctxSingle.restore();
+
+                    if (Math.hypot(player.x - en.x, player.y - en.y) < player.radius + en.radius) {
+                        playSound('hit'); gameMode = 'GAMEOVER';
+                        totalStars += sessionStars; playerXp += Math.floor(score / 2);
+                        let xpNeeded = playerLevel * 100;
+                        if (playerXp >= xpNeeded) { playerXp -= xpNeeded; playerLevel++; localStorage.setItem('arcade_level', playerLevel); }
+                        localStorage.setItem('arcade_stars', totalStars); localStorage.setItem('arcade_xp', playerXp);
+                        if (score >= 100 && maxUnlockedLevel < 1) { maxUnlockedLevel = 1; localStorage.setItem('max_level', '1'); }
+                        document.getElementById('final-score').innerText = 'Skor: ' + score + ' | +' + sessionStars + ' Yıldız';
+                        gameOverScreen.style.display = 'flex';
+                    }
+                    return en.y <= container.clientHeight + 40;
+                });
+
+                if (selectedTrail === 'rainbow') {
+                    for (let t of trail) {
+                        t.alpha -= deltaTime * 3; if (t.alpha < 0) t.alpha = 0;
+                        ctxSingle.save(); ctxSingle.globalAlpha = t.alpha * 0.7;
+                        ctxSingle.beginPath(); ctxSingle.arc(t.x, t.y, player.radius * 0.7, 0, Math.PI * 2);
+                        ctxSingle.fillStyle = t.color; ctxSingle.fill(); ctxSingle.restore();
+                    }
+                }
+
+                ctxSingle.save();
+                if (selectedSkin === 'pumpkin') { ctxSingle.font = '36px sans-serif'; ctxSingle.textAlign = 'center'; ctxSingle.textBaseline = 'middle'; ctxSingle.fillText('🎃', player.x, player.y); }
+                else if (selectedSkin === 'santa') { ctxSingle.font = '36px sans-serif'; ctxSingle.textAlign = 'center'; ctxSingle.textBaseline = 'middle'; ctxSingle.fillText('🎅', player.x, player.y); }
+                else { ctxSingle.beginPath(); ctxSingle.arc(player.x, player.y, player.radius, 0, Math.PI*2); ctxSingle.fillStyle = '#38bdf8'; ctxSingle.shadowColor = '#38bdf8'; ctxSingle.shadowBlur = 15; ctxSingle.fill(); ctxSingle.lineWidth = 3; ctxSingle.strokeStyle = '#fff'; ctxSingle.stroke(); }
+                ctxSingle.restore();
+
+            } else if (gameMode === 'VERSUS') {
+                const fullW = container.clientWidth; const halfH = container.clientHeight / 2;
+                ctx1.clearRect(0, 0, fullW, halfH); ctx2.clearRect(0, 0, fullW, halfH);
+
+                // P1 (Üst Ekran - Zombiler Aşağıdan Yukarıya Doğru Gelir)
+                if (p1Alive) {
+                    p1.x += (p1.targetX - p1.x) * 15 * deltaTime; p1.y += (p1.targetY - p1.y) * 15 * deltaTime;
+                    p1Score += Math.round(deltaTime * 10); document.getElementById('hud-p1').innerText = "P1 (ÜST): " + p1Score;
+                    spawnTimer1 += deltaTime;
+                    if (spawnTimer1 > 0.8) { enemies1.push({ x: Math.random() * (fullW - 40) + 20, y: halfH + 25, radius: 18, speed: 200 + (p1Score * 0.5) }); spawnTimer1 = 0; }
+                    enemies1.forEach(en => {
+                        en.y -= en.speed * deltaTime; // Yukarı doğru
+                        ctx1.save(); ctx1.font = '28px sans-serif'; ctx1.textAlign = 'center'; ctx1.textBaseline = 'middle'; ctx1.fillText('🧟', en.x, en.y); ctx1.restore();
+                    });
+                    enemies1 = enemies1.filter(en => {
+                        if (Math.hypot(p1.x - en.x, p1.y - en.y) < p1.radius + en.radius) { p1Alive = false; checkVersusOver(); }
+                        return en.y >= -30;
+                    });
+                    ctx1.beginPath(); ctx1.arc(p1.x, p1.y, p1.radius, 0, Math.PI*2); ctx1.fillStyle = p1.color; ctx1.shadowColor = p1.color; ctx1.shadowBlur = 15; ctx1.fill(); ctx1.lineWidth = 3; ctx1.strokeStyle = '#fff'; ctx1.stroke(); ctx1.restore();
+                }
+
+                // P2 (Alt Ekran - Zombiler Yukarıdan Aşağıya Doğru Gelir)
+                if (p2Alive) {
+                    p2.x += (p2.targetX - p2.x) * 15 * deltaTime; p2.y += (p2.targetY - p2.y) * 15 * deltaTime;
+                    p2Score += Math.round(deltaTime * 10); document.getElementById('hud-p2').innerText = "P2 (ALT): " + p2Score;
+                    spawnTimer2 += deltaTime;
+                    if (spawnTimer2 > 0.8) { enemies2.push({ x: Math.random() * (fullW - 40) + 20, y: -25, radius: 18, speed: 200 + (p2Score * 0.5) }); spawnTimer2 = 0; }
+                    enemies2.forEach(en => {
+                        en.y += en.speed * deltaTime; // Aşağı doğru
+                        ctx2.save(); ctx2.font = '28px sans-serif'; ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle'; ctx2.fillText('🧟', en.x, en.y); ctx2.restore();
+                    });
+                    enemies2 = enemies2.filter(en => {
+                        if (Math.hypot(p2.x - en.x, p2.y - en.y) < p2.radius + en.radius) { p2Alive = false; checkVersusOver(); }
+                        return en.y <= halfH + 30;
+                    });
+                    ctx2.beginPath(); ctx2.arc(p2.x, p2.y, p2.radius, 0, Math.PI*2); ctx2.fillStyle = p2.color; ctx2.shadowColor = p2.color; ctx2.shadowBlur = 15; ctx2.fill(); ctx2.lineWidth = 3; ctx2.strokeStyle = '#fff'; ctx2.stroke(); ctx2.restore();
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function checkVersusOver() {
+            if (!p1Alive || !p2Alive) {
+                gameMode = 'VERSUS_OVER';
+                playSound('hit');
+                if (!p1Alive && !p2Alive) {
+                    document.getElementById('msg-p1').innerText = "KAYBETTİN"; document.getElementById('msg-p1').style.color = "#f43f5e";
+                    document.getElementById('msg-p2').innerText = "KAYBETTİN"; document.getElementById('msg-p2').style.color = "#f43f5e";
+                } else if (!p1Alive) {
+                    document.getElementById('msg-p1').innerText = "KAYBETTİN"; document.getElementById('msg-p1').style.color = "#f43f5e";
+                    document.getElementById('msg-p2').innerText = "KAZANDIN"; document.getElementById('msg-p2').style.color = "#4ade80";
+                } else {
+                    document.getElementById('msg-p1').innerText = "KAZANDIN"; document.getElementById('msg-p1').style.color = "#4ade80";
+                    document.getElementById('msg-p2').innerText = "KAYBETTİN"; document.getElementById('msg-p2').style.color = "#f43f5e";
+                }
+                overlayP1.style.display = 'flex';
+                overlayP2.style.display = 'flex';
+            }
+        }
+
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
